@@ -1,0 +1,224 @@
+
+module mos (
+  input wire clock,
+  input wire reset,
+  input wire [1023:0] program_instruction,
+  input wire add_instruction_enable,
+  input wire read_binary_enable,
+  output reg [1023:0] next_instruction,
+  input wire [1023:0] write_binary_data,
+  input wire write_binary_enable
+);
+  localparam BUFFER_SIZE = 1024;
+  localparam INSTRUCTION_SIZE = 1024;
+
+  reg [1023:0] instruction_sets [0:BUFFER_SIZE - 1];
+  reg [1023:0] current_instruction;
+  reg [7:0] buffer_pointer;
+  reg [7:0] instruction_pointer;
+  reg [6:0] set1_pointer;
+  reg [6:0] set2_pointer;
+  reg [6:0] set3_pointer;
+  reg [1023:0] binary_sequence [0:BUFFER_SIZE - 1];
+  reg [7:0] read_pointer;
+  reg [7:0] write_pointer;
+  reg read_binary_mode;
+  reg [1023:0] write_binary_value;
+  reg buffer_rotate;
+
+  reg [1024:0] memory [0:BUFFER_SIZE - 1];
+  reg [1024:0] input_buffer;
+  reg [1024:0] output_buffer;
+  reg [10:0] process_id;
+  reg [1:0] state;
+
+  initial begin
+    read_pointer <= 0;
+    buffer_pointer <= 0;
+    instruction_pointer <= 0;
+    set1_pointer <= 0;
+    set2_pointer <= 0;
+    set3_pointer <= 0;
+    current_instruction <= 0;
+    read_pointer <= 0;
+    write_pointer <= 0;
+    read_binary_mode <= 0;
+    write_binary_value <= 0;
+    buffer_rotate <= 0;
+
+    for (integer i = 0; i < BUFFER_SIZE; i = i + 1) begin
+      instruction_sets[i] <= 0;
+      binary_sequence[i] <= 0;
+      memory[i] <= 0;
+    end
+
+    process_id <= 0;
+    state <= 0;
+  end
+
+  always @(posedge clock) begin
+    if (reset) begin
+      buffer_pointer <= 0;
+      instruction_pointer <= 0;
+      set1_pointer <= 0;
+      set2_pointer <= 0;
+      set3_pointer <= 0;
+      current_instruction <= 0;
+      read_pointer <= 0;
+      write_pointer <= 0;
+      read_binary_mode <= 0;
+      write_binary_value <= 0;
+      buffer_rotate <= 0;
+
+      for (integer i = 0; i < BUFFER_SIZE; i = i + 1) begin
+        instruction_sets[i] <= 0;
+        binary_sequence[i] <= 0;
+        memory[i] <= 0;
+      end
+
+      process_id <= 0;
+      state <= 0;
+    end else begin
+      if (buffer_rotate) begin
+        buffer_pointer <= buffer_pointer + 1;
+        if (buffer_pointer >= BUFFER_SIZE) begin
+          buffer_pointer <= 0;
+        end
+        current_instruction <= instruction_sets[buffer_pointer];
+        if (buffer_pointer >= BUFFER_SIZE / 3) begin
+          set1_pointer <= set1_pointer + 1;
+        end else if (buffer_pointer >= 2 * BUFFER_SIZE / 3) begin
+          set2_pointer <= set2_pointer + 1;
+        end else begin
+          set3_pointer <= set3_pointer + 1;
+        end
+        if (set1_pointer >= BUFFER_SIZE / 3) begin
+          set1_pointer <= 0;
+        end else if (set2_pointer >= BUFFER_SIZE / 3) begin
+          set2_pointer <= 0;
+        end else begin
+          set3_pointer <= 0;
+        end
+      end else begin
+        if (add_instruction_enable) begin
+          instruction_sets[buffer_pointer] <= program_instruction;
+          if (read_binary_enable) begin
+            next_instruction <= binary_sequence[read_pointer];
+            read_pointer <= read_pointer + 1;
+            if (read_pointer >= BUFFER_SIZE) begin
+              read_pointer <= 0;
+            end
+          end else begin
+            if (buffer_pointer >= BUFFER_SIZE / 3) begin
+              next_instruction <= instruction_sets[set1_pointer];
+            end else if (buffer_pointer >= 2 * BUFFER_SIZE / 3) begin
+              next_instruction <= instruction_sets[set2_pointer];
+            end else begin
+              next_instruction <= instruction_sets[set3_pointer];
+            end
+          end
+        end
+        if (write_binary_enable) begin
+          if (read_binary_mode) begin
+            binary_sequence[write_pointer] <= write_binary_data;
+            write_pointer <= write_pointer + 1;
+            if (write_pointer >= BUFFER_SIZE) begin
+              write_pointer <= 0;
+            end
+          end else begin
+            read_binary_mode <= 1;
+          end
+        end
+        if (buffer_pointer == 0) begin
+          buffer_rotate <= 1;
+        end else begin
+          buffer_rotate <= 0;
+        end
+
+        if (state == 0) begin
+          if (input_buffer != 0) begin
+            process_id <= process_id + 1;
+            state <= 1;
+          end
+        end else if (state == 1) begin
+          if (current_instruction == 0) begin
+            state <= 0;
+          end else begin
+            memory[process_id] <= current_instruction;
+            state <= 2;
+          end
+        end else if (state == 2) begin
+          output_buffer <= memory[process_id];
+          state <= 0;
+        end
+      end
+    end
+  end
+
+  reg [7:0] kernel_pointer;
+  reg [1023:0] kernel_code;
+  reg [7:0] device_driver_pointer;
+  reg [1023:0] device_driver_code;
+  reg [7:0] file_system_pointer;
+  reg [1023:0] file_system_code;
+  reg [7:0] utility_pointer;
+  reg [1023:0] utility_code;
+
+  always @(posedge clock) begin
+    if (reset) begin
+      kernel_pointer <= 0;
+      device_driver_pointer <= 0;
+      file_system_pointer <= 0;
+      utility_pointer <= 0;
+      kernel_code <= 0;
+      device_driver_code <= 0;
+      file_system_code <= 0;
+      utility_code <= 0;
+    end else begin
+      if (buffer_pointer == 0) begin
+        kernel_pointer <= buffer_pointer + 1;
+        if (kernel_pointer < BUFFER_SIZE) begin
+          kernel_code <= instruction_sets[kernel_pointer];
+        end
+      end else if (buffer_pointer < 2 * BUFFER_SIZE / 3) begin
+        device_driver_pointer <= buffer_pointer + 1;
+        if (device_driver_pointer < BUFFER_SIZE) begin
+          device_driver_code <= instruction_sets[device_driver_pointer];
+        end
+      end else if (buffer_pointer < BUFFER_SIZE) begin
+        file_system_pointer <= buffer_pointer + 1;
+        if (file_system_pointer < BUFFER_SIZE) begin
+          file_system_code <= instruction_sets[file_system_pointer];
+        end
+      end else begin
+        utility_pointer <= buffer_pointer + 1;
+        if (utility_pointer < BUFFER_SIZE) begin
+          utility_code <= instruction_sets[utility_pointer];
+        end
+      end
+    end
+  end
+      always @(posedge clock) begin
+      if (reset) begin
+        output_buffer <= 0;
+      end else begin
+        if (kernel_pointer != 0) begin
+          if (kernel_code[0] == 1) begin
+            output_buffer <= kernel_code[1023:1];
+          end
+        end else if (device_driver_pointer != 0) begin
+          if (device_driver_code[0] == 1) begin
+            output_buffer <= device_driver_code[1023:1];
+          end
+        end else if (file_system_pointer != 0) begin
+          if (file_system_code[0] == 1) begin
+            output_buffer <= file_system_code[1023:1];
+          end
+        end else if (utility_pointer != 0) begin
+          if (utility_code[0] == 1) begin
+            output_buffer <= utility_code[1023:1];
+          end
+        end
+      end
+    end
+endmodule
