@@ -2,28 +2,28 @@ module mos (
   input wire clock,
   input wire reset,
   input wire buffer_rotate,
-  input wire [4:0] program_instruction,
+  input wire [1023:0] program_instruction,
   input wire add_instruction_enable,
   input wire read_binary_enable,
-  output reg [4:0] next_instruction,
-  input wire [4:0] write_binary_data,
+  output reg [1023:0] next_instruction,
+  input wire [1023:0] write_binary_data,
   input wire write_binary_enable
 );
   localparam BUFFER_SIZE = 1024;
-  localparam INSTRUCTION_SIZE = 5;
+  localparam INSTRUCTION_SIZE = 1024;
   
-  reg [4:0] instruction_sets [0:BUFFER_SIZE - 1];
-  reg [4:0] current_instruction;
+  reg [1023:0] instruction_sets [0:BUFFER_SIZE - 1];
+  reg [1023:0] current_instruction;
   reg [7:0] buffer_pointer;
   reg [7:0] instruction_pointer;
   reg [6:0] set1_pointer;
   reg [6:0] set2_pointer;
   reg [6:0] set3_pointer;
-  reg [4:0] binary_sequence [0:BUFFER_SIZE - 1];
+  reg [1023:0] binary_sequence [0:BUFFER_SIZE - 1];
   reg [7:0] read_pointer;
   reg [7:0] write_pointer;
   reg read_binary_mode;
-  reg [4:0] write_binary_value;
+  reg [1023:0] write_binary_value;
 
   initial begin
     if (read_binary_mode) begin
@@ -110,4 +110,4 @@ module mos (
       end
     end
   end
-endmodule          
+endmodule
